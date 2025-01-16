@@ -2,16 +2,46 @@
 
 #include "glh/classes/OpenGLApplication.h"
 
+#include "glh/utils.h"
+
 #include <iostream>
 #include <algorithm>
 #include <limits>
+
 
 int x = 0;
 int y = 0;
 int width = 200;
 int height = 200;
+int touchMonitorWidth = 0;
+int touchMonitorHeight = 0;
 ImVec4 selectorWindowColor = ImVec4(0.4f, 0.7f, 1.0f, 0.5f);
 bool showSelectorWindow = true;
+HHOOK mouseHook = NULL;
+
+float squareX = 0;
+float squareY = 0;
+int framesToDrawSquare = 0;
+
+float scale(float oldLower, float oldUpper, float newLower, float newUpper, float input) {
+    input -= oldLower;               // Move old lower bound to 0
+    input /= (oldUpper - oldLower);  // Normalize value between 0 and 1
+    input *= (newUpper - newLower);  // Scale normalized value to new bound size
+    input += newLower;               // Move scale to new lower bound
+    return input;
+}
+
+LRESULT CALLBACK MouseProc(int nCode, WPARAM wParam, LPARAM lParam) {
+    if (nCode >= 0) {
+        if (wParam == WM_LBUTTONDOWN) {
+            MSLLHOOKSTRUCT* mouseInfo = (MSLLHOOKSTRUCT*)lParam;
+            squareX = mouseInfo->pt.x;
+            squareY = mouseInfo->pt.y;
+            framesToDrawSquare = 120;
+        }
+    }
+    return CallNextHookEx(mouseHook, nCode, wParam, lParam);
+}
 
 void setGLFWWindowColorAndOpacity(GLFWwindow* window, const ImVec4& color) {
     GLFWwindow* returnContext = glfwGetCurrentContext();
@@ -21,12 +51,21 @@ void setGLFWWindowColorAndOpacity(GLFWwindow* window, const ImVec4& color) {
     glClearColor(color.x, color.y, color.z, color.w);
     glClear(GL_COLOR_BUFFER_BIT);
     glfwSetWindowOpacity(window, color.w);
-    glfwSwapBuffers(window);
+    //glfwSwapBuffers(window);
 
     glfwMakeContextCurrent(returnContext);
 }
 
 void render(GLFWwindow* window) {
+    GLFWmonitor* primaryMonitor = glfwGetPrimaryMonitor();
+    if (primaryMonitor != nullptr) {
+        const GLFWvidmode* primaryMonitorVidMode = glfwGetVideoMode(primaryMonitor);
+        if (primaryMonitorVidMode != nullptr) {
+            touchMonitorWidth = primaryMonitorVidMode->width;
+            touchMonitorHeight = primaryMonitorVidMode->height;
+        }
+    }
+
     // Get the list of monitors
     int monitorCount;
     GLFWmonitor** monitors = glfwGetMonitors(&monitorCount);
@@ -74,6 +113,8 @@ void render(GLFWwindow* window) {
     ImGuiIO& io = ImGui::GetIO();
 
     while (!glfwWindowShouldClose(window)) {
+        glhErrorCheck("Start of render");
+
         glfwMakeContextCurrent(window);
 
         // Start the Dear ImGui frame
@@ -117,12 +158,67 @@ void render(GLFWwindow* window) {
         glClearColor(0.45f, 0.55f, 0.60f, 1.00f);
         glClear(GL_COLOR_BUFFER_BIT);
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+        if (framesToDrawSquare > 0) {
+            glfwMakeContextCurrent(selectorWindow);
+
+            glViewport(0, 0, width, height);
+
+            //double centerX = squareX / (double)touchMonitorWidth;
+            //double centerY = squareY / (double)touchMonitorHeight;
+
+            double squareSize = 50.0;
+
+            double leftPx = squareX - squareSize;
+            double rightPx = squareX + squareSize;
+            double bottomPx = squareY - squareSize;
+            double topPx = squareY + squareSize;
+
+            float leftNdc = scale(0.0f, 1.0f, -1.0f, 1.0f, leftPx / (double)touchMonitorWidth);
+            float rightNdc = scale(0.0f, 1.0f, -1.0f, 1.0f, rightPx / (double)touchMonitorWidth);
+            float bottomNdc = -1.0f * scale(0.0f, 1.0f, -1.0f, 1.0f, bottomPx / (double)touchMonitorHeight);
+            float topNdc = -1.0f * scale(0.0f, 1.0f, -1.0f, 1.0f, topPx / (double)touchMonitorHeight);
+
+            glBegin(GL_QUADS);
+
+            glColor4f(1.0f, 0.0f, 0.0f, 1.0f);
+            glVertex2f(leftNdc, bottomNdc);
+            glColor4f(1.0f, 0.0f, 0.0f, 1.0f);
+            glVertex2f(leftNdc, topNdc);
+            glColor4f(1.0f, 0.0f, 0.0f, 1.0f);
+            glVertex2f(rightNdc, topNdc);
+            glColor4f(1.0f, 0.0f, 0.0f, 1.0f);
+            glVertex2f(rightNdc, bottomNdc);
+
+            glEnd();
+
+            
+
+            glfwMakeContextCurrent(window);
+            framesToDrawSquare--;
+        }
+        else if (framesToDrawSquare == 0) {
+            glfwMakeContextCurrent(selectorWindow);
+            glClearColor(selectorWindowColor.x, selectorWindowColor.y, selectorWindowColor.z, 1.0f);
+            glClear(GL_COLOR_BUFFER_BIT);
+            glfwMakeContextCurrent(window);
+            framesToDrawSquare--;
+        }
         glfwSwapBuffers(window);
+        glfwSwapBuffers(selectorWindow);
+        glhErrorCheck("End of render");
+
     }
 }
 
 int main()
 {
+    mouseHook = SetWindowsHookEx(WH_MOUSE_LL, MouseProc, NULL, 0);
+    if (!mouseHook) {
+        printf("Failed to set hook\n");
+        return -1;
+    }
+
     OpenGLApplication::ApplicationConfig config;
     config.windowName = "WindowTouchRemapper Configurator";
     config.windowInitWidth = 800;
