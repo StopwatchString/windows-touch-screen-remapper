@@ -192,14 +192,12 @@ void render(GLFWwindow* window) {
 
             glEnd();
 
-            
-
             glfwMakeContextCurrent(window);
             framesToDrawSquare--;
         }
         else if (framesToDrawSquare == 0) {
             glfwMakeContextCurrent(selectorWindow);
-            glClearColor(selectorWindowColor.x, selectorWindowColor.y, selectorWindowColor.z, 1.0f);
+            glClearColor(selectorWindowColor.x, selectorWindowColor.y, selectorWindowColor.z, selectorWindowColor.w);
             glClear(GL_COLOR_BUFFER_BIT);
             glfwMakeContextCurrent(window);
             framesToDrawSquare--;
@@ -234,11 +232,11 @@ int main()
     config.transparentFramebuffer = false;
     config.glVersionMajor = 4;
     config.glVersionMinor = 6;
-    config.glslVersionString = "#version 460"; // Used for DearImgui, leave default unless you know what to put here
+    config.glslVersionString = "#version 460";
     config.customDrawFunc = render;
-    config.customKeyCallback = nullptr; // std::function<void(GLFWwindow* window, int key, int scancode, int action, int mods)>
-    config.customErrorCallback = nullptr; // std::function<void(int error_code, const char* description)>
-    config.customDropCallback = nullptr; // std::function<void(GLFWwindow* window, int count, const char** paths)>
+    config.customKeyCallback = nullptr;
+    config.customErrorCallback = nullptr;
+    config.customDropCallback = nullptr;
 
     try {
         OpenGLApplication application(config);
