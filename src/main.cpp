@@ -39,6 +39,7 @@ int boxX = 0;
 int boxY = 0;
 int boxWidth = 0;
 int boxHeight = 0;
+int boxHalfLengthPixels = 40;
 int boxFramesToLive = 0;
 
 
@@ -170,6 +171,8 @@ void renderConfigWindow()
 
     mouseCallbackHasChanged = ImGui::Checkbox("Toggle Mouse Callback", &mouseCallbackActive);
 
+    ImGui::SliderInt("Box Half Length Pixels", &boxHalfLengthPixels, 10, 100);
+
     ImGui::End();
 
     // Rendering
@@ -200,6 +203,7 @@ void renderSelectorWindow()
 
     if (selectorWindowSizeChanged) {
         glfwSetWindowSize(selectorWindow, selectorWindowWidth, selectorWindowHeight);
+        glViewport(0, 0, selectorWindowWidth, selectorWindowHeight);
         selectorWindowSizeChanged = false;
     }
 
@@ -225,10 +229,33 @@ void renderSelectorWindow()
 
     // Box render
     if (boxFramesToLive > 0) {
+        glMatrixMode(GL_PROJECTION);
+        glLoadIdentity();
+        glOrtho(0.0, selectorWindowWidth, 0.0, selectorWindowHeight, -1.0, 1.0);
+
         float u = static_cast<float>(boxX) / static_cast<float>(sourceScreenWidth);
         float v = static_cast<float>(boxY) / static_cast<float>(sourceScreenHeight);
 
+        int selectorWindowBoxXPixels = u * selectorWindowWidth;
+        int selectorWindowBoxYPixels = v * selectorWindowHeight;
 
+        int boxLeft = selectorWindowBoxXPixels - boxHalfLengthPixels;
+        int boxRight = selectorWindowBoxXPixels + boxHalfLengthPixels;
+        int boxBottom = selectorWindowBoxYPixels - boxHalfLengthPixels;
+        int boxTop = selectorWindowBoxYPixels + boxHalfLengthPixels;
+
+        glBegin(GL_POLYGON);
+
+        glColor3f(1.0f, 0.0f, 0.0f);
+        glVertex2f(boxLeft, boxBottom);
+        glColor3f(1.0f, 0.0f, 0.0f);
+        glVertex2f(boxLeft, boxTop);
+        glColor3f(1.0f, 0.0f, 0.0f);
+        glVertex2f(boxRight, boxTop);
+        glColor3f(1.0f, 0.0f, 0.0f);
+        glVertex2f(boxRight, boxBottom);
+
+        glEnd();
 
         boxFramesToLive--;
     }
@@ -269,6 +296,11 @@ void render(GLFWwindow* window)
     }
     forceUpdateSelectorWindow();
     forceUpdateSelectorWindow();
+
+    glfwMakeContextCurrent(configWindow);
+    glfwSwapInterval(1);
+    glfwMakeContextCurrent(selectorWindow);
+    glfwSwapInterval(1);
 
     while (!glfwWindowShouldClose(configWindow)) {
         renderConfigWindow();
