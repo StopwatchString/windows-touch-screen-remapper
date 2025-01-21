@@ -66,7 +66,6 @@ LRESULT CALLBACK MouseProc(int nCode, WPARAM wParam, LPARAM lParam)
             boxX = mouseInfo->pt.x;
             boxY = sourceScreenHeight - mouseInfo->pt.y - 1;
             boxFramesToLive = 120;
-            std::cout << "mouse callbac" << std::endl;
         }
     }
     return CallNextHookEx(mouseHook, nCode, wParam, lParam);
@@ -162,8 +161,8 @@ void renderConfigWindow()
     selectorWindowPositionChanged |= ImGui::SliderInt("X", &selectorWindowX, 0, maxVirtualDisplayWidth);
     selectorWindowPositionChanged |= ImGui::SliderInt("Y", &selectorWindowY, 0, maxVirtualDisplayHeight);
 
-    selectorWindowSizeChanged |= ImGui::SliderInt("Width", &selectorWindowWidth, 0, maxVirtualDisplayWidth);
-    selectorWindowSizeChanged |= ImGui::SliderInt("Height", &selectorWindowHeight, 0, maxVirtualDisplayHeight);
+    selectorWindowSizeChanged |= ImGui::SliderInt("Width", &selectorWindowWidth, 1, maxVirtualDisplayWidth);
+    selectorWindowSizeChanged |= ImGui::SliderInt("Height", &selectorWindowHeight, 1, maxVirtualDisplayHeight);
 
     selectorWindowColorChanged = ImGui::ColorEdit4("Selector Window Color", (float*)&selectorWindowColor);
 
