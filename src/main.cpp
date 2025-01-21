@@ -11,9 +11,16 @@
 GLFWwindow* configWindow = nullptr;
 GLFWwindow* selectorWindow = nullptr;
 
+int sourceScreenWidth = 0;
+int sourceScreenHeight = 0;
+
 int maxVirtualDisplayWidth = 0;
 int maxVirtualDisplayHeight = 0;
 HHOOK mouseHook = NULL;
+
+// Polling Thread
+bool mouseCallbackActive = true;
+bool mouseCallbackHasChanged = true;
 
 // Selector Window
 int selectorWindowX = 0;
@@ -22,16 +29,24 @@ int selectorWindowWidth = 400;
 int selectorWindowHeight = 400;
 bool showSelectorWindow = true;
 ImVec4 selectorWindowColor = ImVec4(0.4f, 0.7f, 1.0f, 0.5f);
-// Changed flags
 bool selectorWindowSizeChanged = true;
 bool selectorWindowPositionChanged = true;
 bool selectorWindowColorChanged = true;
 bool selectorWindowVisibilityChanged = true;
 
+// Remap demo box
+int boxX = 0;
+int boxY = 0;
+int boxWidth = 0;
+int boxHeight = 0;
+int boxFramesToLive = 0;
+
+
 //--------------------------------------------------------
 // scale()
 //--------------------------------------------------------
-float scale(float oldLower, float oldUpper, float newLower, float newUpper, float input) {
+float scale(float oldLower, float oldUpper, float newLower, float newUpper, float input)
+{
     input -= oldLower;               // Move old lower bound to 0
     input /= (oldUpper - oldLower);  // Normalize value between 0 and 1
     input *= (newUpper - newLower);  // Scale normalized value to new bound size
@@ -42,27 +57,55 @@ float scale(float oldLower, float oldUpper, float newLower, float newUpper, floa
 //--------------------------------------------------------
 // MouseProc()
 //--------------------------------------------------------
-LRESULT CALLBACK MouseProc(int nCode, WPARAM wParam, LPARAM lParam) {
+LRESULT CALLBACK MouseProc(int nCode, WPARAM wParam, LPARAM lParam)
+{
     if (nCode >= 0) {
         if (wParam == WM_LBUTTONDOWN) {
             MSLLHOOKSTRUCT* mouseInfo = (MSLLHOOKSTRUCT*)lParam;
+            boxX = mouseInfo->pt.x;
+            boxY = sourceScreenHeight - mouseInfo->pt.y - 1;
+            boxFramesToLive = 120;
+            std::cout << "mouse callbac" << std::endl;
         }
     }
     return CallNextHookEx(mouseHook, nCode, wParam, lParam);
 }
 
 //--------------------------------------------------------
+// registerMouseCallback()
+//--------------------------------------------------------
+void registerMouseCallback()
+{
+    mouseHook = SetWindowsHookEx(WH_MOUSE_LL, MouseProc, NULL, 0);
+    if (mouseHook == NULL) {
+        std::cout << "Failed to register Mouse callback!" << std::endl;
+    }
+}
+
+//--------------------------------------------------------
+// unregisterMouseCallback()
+//--------------------------------------------------------
+void unregisterMouseCallback()
+{
+    if (!UnhookWindowsHookEx(mouseHook)) {
+        std::cout << "Failed to unregister Mouse callback!" << std::endl;
+    }
+    mouseHook = NULL;
+}
+
+//--------------------------------------------------------
 // calculateVirtualWindowExtents()
 //--------------------------------------------------------
-void calculateVirtualWindowExtents() {
-    //GLFWmonitor* primaryMonitor = glfwGetPrimaryMonitor();
-    //if (primaryMonitor != nullptr) {
-    //    const GLFWvidmode* primaryMonitorVidMode = glfwGetVideoMode(primaryMonitor);
-    //    if (primaryMonitorVidMode != nullptr) {
-    //        touchMonitorWidth = primaryMonitorVidMode->width;
-    //        touchMonitorHeight = primaryMonitorVidMode->height;
-    //    }
-    //}
+void calculateVirtualWindowExtents()
+{
+    GLFWmonitor* primaryMonitor = glfwGetPrimaryMonitor();
+    if (primaryMonitor != nullptr) {
+        const GLFWvidmode* primaryMonitorVidMode = glfwGetVideoMode(primaryMonitor);
+        if (primaryMonitorVidMode != nullptr) {
+            sourceScreenWidth = primaryMonitorVidMode->width;
+            sourceScreenHeight = primaryMonitorVidMode->height;
+        }
+    }
 
     // Get the list of monitors
     int monitorCount;
@@ -99,7 +142,8 @@ void calculateVirtualWindowExtents() {
 //--------------------------------------------------------
 // renderConfigWindow()
 //--------------------------------------------------------
-void renderConfigWindow() {
+void renderConfigWindow()
+{
     glhErrorCheck("Start renderConfigWindow()");
 
     glfwMakeContextCurrent(configWindow);
@@ -124,6 +168,8 @@ void renderConfigWindow() {
 
     selectorWindowVisibilityChanged = ImGui::Checkbox("Toggle Selector Overlay", &showSelectorWindow);
 
+    mouseCallbackHasChanged = ImGui::Checkbox("Toggle Mouse Callback", &mouseCallbackActive);
+
     ImGui::End();
 
     // Rendering
@@ -142,7 +188,8 @@ void renderConfigWindow() {
 //--------------------------------------------------------
 // renderSelectorWindow()
 //--------------------------------------------------------
-void renderSelectorWindow() {
+void renderSelectorWindow()
+{
     glhErrorCheck("Start renderSelectorWindow()");
     glfwMakeContextCurrent(selectorWindow);
 
@@ -176,6 +223,16 @@ void renderSelectorWindow() {
 
     glClear(GL_COLOR_BUFFER_BIT);
 
+    // Box render
+    if (boxFramesToLive > 0) {
+        float u = static_cast<float>(boxX) / static_cast<float>(sourceScreenWidth);
+        float v = static_cast<float>(boxY) / static_cast<float>(sourceScreenHeight);
+
+
+
+        boxFramesToLive--;
+    }
+
     glfwSwapBuffers(selectorWindow);
 
     glhErrorCheck("End renderSelectorWindow()");
@@ -184,7 +241,8 @@ void renderSelectorWindow() {
 //--------------------------------------------------------
 // forceUpdateSelectorWindow()
 //--------------------------------------------------------
-void forceUpdateSelectorWindow() {
+void forceUpdateSelectorWindow()
+{
     selectorWindowSizeChanged = true;
     selectorWindowPositionChanged = true;
     selectorWindowColorChanged = true;
@@ -196,7 +254,8 @@ void forceUpdateSelectorWindow() {
 //--------------------------------------------------------
 // render()
 //--------------------------------------------------------
-void render(GLFWwindow* window) {
+void render(GLFWwindow* window)
+{
     configWindow = window;
 
     calculateVirtualWindowExtents();
@@ -221,16 +280,26 @@ void render(GLFWwindow* window) {
 }
 
 //--------------------------------------------------------
+// polling()
+//--------------------------------------------------------
+void polling()
+{
+    if (mouseCallbackHasChanged) {
+        if (mouseCallbackActive) {
+            registerMouseCallback();
+        }
+        else {
+            unregisterMouseCallback();
+        }
+        mouseCallbackHasChanged = false;
+    }
+}
+
+//--------------------------------------------------------
 // main()
 //--------------------------------------------------------
 int main()
 {
-    //mouseHook = SetWindowsHookEx(WH_MOUSE_LL, MouseProc, NULL, 0);
-    //if (!mouseHook) {
-    //    printf("Failed to set hook\n");
-    //    return -1;
-    //}
-
     OpenGLApplication::ApplicationConfig config;
     config.windowName = "WindowTouchRemapper Configurator";
     config.windowInitWidth = 800;
@@ -251,6 +320,7 @@ int main()
     config.customKeyCallback = nullptr;
     config.customErrorCallback = nullptr;
     config.customDropCallback = nullptr;
+    config.customPollingFunc = polling;
 
     try {
         OpenGLApplication application(config);
